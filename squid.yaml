@@ -9,10 +9,5 @@
   become: true
   gather_facts: yes
   roles:
-    - openldap-server
-
-- hosts: all
-  become: true
-  gather_facts: yes
-  roles:
-    - openldap-client
+    - squid
+    - named

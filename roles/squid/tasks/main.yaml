@@ -1,0 +1,8 @@
+---
+- name: Squid install
+  yum: name=squid state=installed
+  tags: squid
+
+- name: Enable and start squid
+  systemd: name=squid state=started enabled=yes
+  tags: squid
