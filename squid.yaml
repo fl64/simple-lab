@@ -7,7 +7,11 @@
 
 - hosts: srv1
   become: true
-  gather_facts: yes
   roles:
     - squid
     - named
+
+- hosts: all
+  become: true
+  roles:
+    - dns_resolver

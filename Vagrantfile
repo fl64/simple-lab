@@ -7,7 +7,7 @@ Vagrant.configure("2") do |config|
   config.ssh.forward_agent = true
 
   config.vm.box_check_update = false
-  config.vm.box = "centos/7" 
+  config.vm.box = "generic/centos7" 
   config.vm.define "srv1" do |srv1|
     srv1.vm.hostname = 'srv1.example.com'
     # srv1.vm.network :"private_network", ip: "10.0.0.10", virtualbox__intnet: "vlan0"
@@ -19,7 +19,7 @@ Vagrant.configure("2") do |config|
     end
   end
   config.vm.box_check_update = false
-  config.vm.box = "centos/7" 
+  config.vm.box = "generic/centos7" 
   config.vm.define "srv2" do |srv2|
     srv2.vm.hostname = 'srv2.example.com'
     #srv2.vm.network :"private_network", ip: "10.0.0.20", virtualbox__intnet: "vlan0"
