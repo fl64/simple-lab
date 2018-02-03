@@ -1,3 +1,2 @@
----
-- dir:
-	password: P@ssw0rd
+dir:
+  password: "P@ssw0rd"
