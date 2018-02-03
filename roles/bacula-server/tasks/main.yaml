@@ -1,0 +1,45 @@
+---
+- name: Install bacula server components
+  yum: name={{ item }} state=installed
+  with_items:
+  - bacula-director
+  - bacula-storage
+  - bacula-console
+  - mariadb-server
+  tags: bacula-server
+
+- name: Enable mariadb
+  systemd: name=mariadb state=started enabled=yes
+  tags: bacula-server
+
+- name: Set alternatives
+  alternatives: name=libbaccats.so path=/usr/lib64/libbaccats-mysql.so
+  tags: bacula-server
+
+- name: Create bacula DB
+  command: "{{ item }}"
+  with_items:
+    - /usr/libexec/bacula/grant_mysql_privileges
+    - /usr/libexec/bacula/create_mysql_database
+    - /usr/libexec/bacula/make_mysql_tables
+
+- name: Enable bacula server
+  systemd: name={{ item }} state=started enabled=yes
+  with_items:
+    - bacula-dir
+    - bacula-sd
+  tags: bacula-server
+
+
+
+- name: Deploy configs
+  template: src={{ item.j2 }} dest={{ item.dst }} owner={{ item.owner }} group={{ item.group }} mode=0644 backup=yes
+  with_items:
+  - {j2: "templates/bacula-dir.conf.j2", dst: "/etc/bacula/bacula-dir.conf", owner: "root", group: "bacula"}
+  - {j2: "templates/bacula-sd.conf.j2", dst: "/etc/bacula/bacula-sd.conf", owner: "root", group: "bacula"}
+  - {j2: "templates/bconsole.conf.j2", dst: "/etc/bacula/bconsole.conf", owner: "root", group: "bacula"}
+  notify: 
+    - restart bacula-dir
+    - restart bacula-sd
+  tags: bacula-server
+
