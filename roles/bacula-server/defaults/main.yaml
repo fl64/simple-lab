@@ -1,0 +1,9 @@
+---
+dir:
+  ip: "10.0.0.10"
+  password: P@ssw0rd
+sd:
+  ip: "10.0.0.10"
+  password: P@ssw0rd
+fd:
+  password: P@ssw0rd  
