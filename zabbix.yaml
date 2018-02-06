@@ -1,0 +1,13 @@
+---
+- hosts: all
+  become: true
+  gather_facts: yes
+  roles:
+    - common
+
+- hosts: srv1
+  become: true
+  gather_facts: yes
+  roles:
+    - zabbix-server
+

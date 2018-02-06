@@ -18,3 +18,23 @@
   systemd: name=firewalld state=stopped enabled=no
   register: result
   tags: networking
+
+- name: Check if EPEL exists
+  stat: path={{ epel.repo_file }}
+  register: epel_result
+  tags: epel
+
+- name: Install EPEL 
+  yum:
+    name: "{{ epel.url_repo }}"
+    state: present
+  register: result
+  when: not epel_result.stat.exists
+  tags: epel
+
+- name: Import EPEL GPG
+  rpm_key:
+    key: "{{ epel.url_key }}"
+    state: present
+  when: not epel_result.stat.exists
+  tags: epel

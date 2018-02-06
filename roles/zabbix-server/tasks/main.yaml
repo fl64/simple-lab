@@ -1,0 +1,150 @@
+- name: Disable selinux
+  selinux: state=disabled
+
+- name: Check if zabbix repo exists
+  stat: path=/etc/yum.repos.d/zabbix.repo
+  register: zabbix_result
+  tags: zabbix-server, zabbix-repo
+
+- name: "Install zabbix repo"
+  yum: name=http://repo.zabbix.com/zabbix/3.4/rhel/7/x86_64/zabbix-release-3.4-2.el7.noarch.rpm state=present
+  when: not zabbix_result.stat.exists
+  tags: zabbix-server, zabbix-repo
+#- name: Deploy zabbix repo
+#  template: src={{ item.j2 }} dest={{ item.dst }} owner={{ item.owner }} group={{ item.group }} mode=0644
+#  with_items:
+#  - {j2: "templates/zabbix.repo.j2", dst: "/etc/yum.repo.d/zabbix.repo", owner: "root", group: "root"}
+#  tags: zabbix-server
+
+- name: Install packets
+  yum: name={{ item }} state=installed
+  with_items: 
+  - mariadb-server
+  - mariadb
+  - zabbix-server-mysql
+  - zabbix-web-mysql
+  - MySQL-python
+  - httpd
+  tags: zabbix-server
+
+- name: Enable MySQL
+  systemd: name=mariadb state=started enabled=true
+  tags: zabbix-server, mariadb
+
+
+
+- name: Check root password
+  command: 'mysql -uroot -p{{ mariadb.root_password }} -e"quit"'
+  register: check_mariadb_root 
+  ignore_errors: yes
+
+- name: Debug!
+  debug: msg="{{ check_mariadb_root }}"
+
+- name: Set root password
+  mysql_user: 
+    name=root
+    host="{{ item }}" 
+    password="{{ mariadb.root_password }}" 
+  with_items:
+  - "{{ ansible_hostname }}"
+  - "127.0.0.1"
+  - "::1"
+  - "localhost"
+  ignore_errors: yes
+  notify:
+  - restart mariadb
+  when: not (check_mariadb_root.rc==0)
+  tags: zabbix-server, mariadb
+
+- name: Remove anonymous
+  mysql_user: 
+    name: '' 
+    state: absent 
+    host_all: yes
+    login_user: root
+    login_password: "{{ mariadb.root_password }}"
+  tags: zabbix-server, mariadb
+
+- name: Create a zabbix DB
+  mysql_db:
+    login_user: root
+    login_password: "{{ mariadb.root_password }}"
+    name: "{{ mariadb.zabbix_db }}"
+    state: present
+  register: db_created
+  tags: zabbix-server, mariadb
+
+- mysql_user:
+    name: "{{ mariadb.zabbix_user }}"
+    password: "{{ mariadb.zabbix_password }}"
+    priv: '{{ mariadb.zabbix_db }}.*:ALL'
+    state: present
+    login_user: root
+    login_password: "{{ mariadb.root_password }}"
+
+- name: get Zabbix version
+  shell: 'rpm -qi zabbix-server-mysql | grep Version | cut -d ":" -f 2 | tr -d "[:space:]"'
+  register: zabbix_version
+
+- name: get Zabbix version
+  yum: list=zabbix-server-mysql
+  register: test
+
+- name: Debug!
+  debug: msg="{{ test }}"
+
+- name: Deploy DB
+  mysql_db:
+    name: "{{ mariadb.zabbix_db }}"
+    state: import
+    target: "/usr/share/doc/zabbix-server-mysql-{{ zabbix_version.stdout }}/create.sql.gz"
+    login_user: "{{ mariadb.zabbix_user }}"
+    login_password: "{{ mariadb.zabbix_password }}"
+  when: db_created.changed 
+
+- name: Configure zabbix_server.conf
+  lineinfile:
+    path: /etc/zabbix/zabbix_server.conf
+    regexp: "{{ item.regexp }}"
+    line: "{{ item.line }}"
+    state: present
+    insertafter: EOF
+    #backrefs: yes
+    backup: yes
+  with_items:
+  - { regexp: '^DBHost=', line: 'DBHost=localhost' }
+  - { regexp: '^DBName=', line: 'DBName={{ mariadb.zabbix_db }}'}
+  - { regexp: '^DBUser=', line: 'DBUser={{ mariadb.zabbix_user }}'}
+  - { regexp: '^DBPassword=', line: 'DBPassword={{ mariadb.zabbix_password }}'}
+
+- name: Configure zabbix_server.conf
+  lineinfile:
+    path: /etc/httpd/conf.d/zabbix.conf
+    regexp: "#.*php_value.*date.timezone"
+    line: "php_value date.timezone Europe/Moscow"
+    state: present
+    insertafter: '.*IfModule mod_php5.c'
+    #backrefs: yes
+    backup: yes
+  notify:
+  - restart httpd
+
+- name: Enable httpd
+  systemd: name=httpd state=started enabled=true
+  tags: zabbix-server
+
+- name: Enable zabbix
+  systemd: name=zabbix-server state=started enabled=true
+  tags: zabbix-server
+#
+## Make sure that NOBODY can access the server without a password
+#mysql -e "UPDATE mysql.user SET Password = PASSWORD('CHANGEME') WHERE User = 'root'"
+## Kill the anonymous users
+#mysql -e "DROP USER ''@'localhost'"
+## Because our hostname varies we'll use some Bash magic here.
+#mysql -e "DROP USER ''@'$(hostname)'"
+## Kill off the demo database
+#mysql -e "DROP DATABASE test"
+## Make our changes take effect
+#mysql -e "FLUSH PRIVILEGES"
