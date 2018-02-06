@@ -3,3 +3,4 @@ mariadb:
     zabbix_db: zabbix
     zabbix_user: zabbix
     zabbix_password: P@ssw0rd
+    zabbix_server_name: zabbix

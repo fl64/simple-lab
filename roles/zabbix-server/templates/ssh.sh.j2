@@ -1,0 +1,2 @@
+sshpass -p $3 ssh $2@$1 -o "StrictHostKeyChecking no" -o "UserKnownHostsFile /dev/null" exit 2>/dev/null
+echo $?
