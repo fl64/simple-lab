@@ -41,21 +41,30 @@
 - name: Debug!
   debug: msg="{{ check_mariadb_root }}"
 
-- name: Set root password
-  mysql_user: 
-    name=root
-    host="{{ item }}" 
-    password="{{ mariadb.root_password }}" 
-  with_items:
-  - "{{ ansible_hostname }}"
-  - "127.0.0.1"
-  - "::1"
-  - "localhost"
-  ignore_errors: yes
-  notify:
-  - restart mariadb
+- name: Change root password
+  command: 'mysql -uroot -e"UPDATE mysql.user SET Password=PASSWORD(''{{mariadb.root_password}}'') WHERE User=''root'';FLUSH PRIVILEGES;"'
   when: not (check_mariadb_root.rc==0)
   tags: zabbix-server, mariadb
+
+############################################### DONT WORK Correctly
+#- name: Set root password
+#  mysql_user: 
+#    name: root
+#    host: "{{ item }}" 
+#    password: "{{ mariadb.root_password }}" 
+#    login_user: root
+#    login_password: "new-password"
+#  with_items:
+#  - "{{ ansible_hostname }}"
+#  - "127.0.0.1"
+#  - "::1"
+#  - "localhost"
+#  ignore_errors: yes
+#  notify:
+#  - restart mariadb
+#  when: not (check_mariadb_root.rc==0)
+#  tags: zabbix-server, mariadb
+###############################################
 
 - name: Remove anonymous
   mysql_user: 
@@ -131,12 +140,29 @@
   notify:
   - restart httpd
 
-#### TEST IT!!!
-#### - name: Deploy files
-####   template: src={{ item.j2 }} dest={{ item.dst }} owner={{ item.owner }} group={{ item.group }} mode=0644
-####   with_items:
-####   - {j2: "templates/zabbix.conf.php.j2", dst: "/etc/zabbix/web/zabbix.conf.php", owner: "root", group: "root"}
-####   tags: zabbix-server
+- name: Deploy config
+  template: src={{ item.j2 }} dest={{ item.dst }} owner={{ item.owner }} group={{ item.group }} mode=0644
+  with_items:
+  - {j2: "templates/zabbix.conf.php.j2", dst: "/etc/zabbix/web/zabbix.conf.php", owner: "root", group: "root"}
+  notify:
+  - restart httpd
+  tags: zabbix-server
+
+- name: Download check_x224
+  get_url:
+    url: http://troels.arvin.dk/code/nagios/check_x224
+    dest: /usr/lib/zabbix/externalscripts/check_x224
+    mode: 0755
+    owner: root
+    group: root
+
+
+- name: Deploy scripts
+  template: src={{ item.j2 }} dest={{ item.dst }} owner={{ item.owner }} group={{ item.group }} mode=0755
+  with_items:
+  - {j2: "templates/rdp.sh.j2", dst: "/usr/lib/zabbix/externalscripts/rdp.sh", owner: "root", group: "root"}
+  - {j2: "templates/ssh.sh.j2", dst: "/usr/lib/zabbix/externalscripts/ssh.sh", owner: "root", group: "root"}
+  tags: zabbix-server
 
 - name: Enable httpd
   systemd: name=httpd state=started enabled=true
@@ -145,14 +171,4 @@
 - name: Enable zabbix
   systemd: name=zabbix-server state=started enabled=true
   tags: zabbix-server
-#
-## Make sure that NOBODY can access the server without a password
-#mysql -e "UPDATE mysql.user SET Password = PASSWORD('CHANGEME') WHERE User = 'root'"
-## Kill the anonymous users
-#mysql -e "DROP USER ''@'localhost'"
-## Because our hostname varies we'll use some Bash magic here.
-#mysql -e "DROP USER ''@'$(hostname)'"
-## Kill off the demo database
-#mysql -e "DROP DATABASE test"
-## Make our changes take effect
-#mysql -e "FLUSH PRIVILEGES"
+
